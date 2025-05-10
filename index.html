@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Distance Calculator</title>
+    <script>
+        // Allowed geographic regions with latitude and longitude ranges
+        const allowedRegions = {
+            "Denmark": { latMin: 54.5, latMax: 57.8, lonMin: 8.0, lonMax: 12.9 },
+            "Sweden": { latMin: 55.0, latMax: 57.5, lonMin: 12.0, lonMax: 14.5 },
+            "Germany": { latMin: 54.7, latMax: 55.0, lonMin: 9.2, lonMax: 9.5 }, // Only Flensburg
+            "Faroe Islands": { latMin: 61.4, latMax: 62.4, lonMin: -7.7, lonMax: -6.5 },
+            "Iceland": { latMin: 63.3, latMax: 66.0, lonMin: -24.5, lonMax: -13.0 },
+            "Norway": { latMin: 58.0, latMax: 70.0, lonMin: 5.0, lonMax: 20.0 }
+        };
+
+        // Function to check if coordinates are within allowed regions
+        function isWithinAllowedRegion(lat, lon) {
+            return Object.values(allowedRegions).some(region =>
+                lat >= region.latMin && lat <= region.latMax && 
+                lon >= region.lonMin && lon <= region.lonMax
+            );
+        }
+
+        // Function to fetch coordinates for a given city name using OpenStreetMap API
+        async function getCoordinates(cityName) {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityName)}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!data.length) {
+                    console.log("❌ No coordinates found for the entered city.");
+                    return null;
+                }
+
+                return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+            } catch (error) {
+                console.error("⚠️ Error fetching coordinates:", error);
+                return null;
+            }
+        }
+
+        // Function to calculate distance using the Haversine formula
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // Distance in kilometers
+        }
+
+        // Function to calculate distance between two cities
+        async function calculateDistance() {
+            const city1 = document.getElementById("city1").value.trim();
+            const city2 = document.getElementById("city2").value.trim();
+
+            const coords1 = await getCoordinates(city1);
+            const coords2 = await getCoordinates(city2);
+
+            if (!coords1 || !coords2) {
+                document.getElementById("result").innerHTML = "❌ One or both cities could not be found.";
+                return;
+            }
+
+            if (!isWithinAllowedRegion(coords1.lat, coords1.lon) || !isWithinAllowedRegion(coords2.lat, coords2.lon)) {
+                document.getElementById("result").innerHTML = "❌ One or both cities are outside the allowed range.";
+                return;
+            }
+
+            const distance = haversine(coords1.lat, coords1.lon, coords2.lat, coords2.lon);
+            document.getElementById("result").innerHTML = `✅ The real distance between ${city1} and ${city2} is: ${distance.toFixed(2)} km`;
+        }
+
+        // Function to implement autocomplete for city names
+        async function autocompleteCity(inputId) {
+            const input = document.getElementById(inputId);
+            input.addEventListener("input", async function () {
+                const query = input.value.trim();
+                if (query.length < 3) return;
+
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const datalist = document.getElementById(inputId + "-list");
+                datalist.innerHTML = "";
+
+                data.forEach(city => {
+                    const option = document.createElement("option");
+                    option.value = city.display_name;
+                    datalist.appendChild(option);
+                });
+            });
+        }
+
+        // Initialize autocomplete for both input fields
+        document.addEventListener("DOMContentLoaded", () => {
+            autocompleteCity("city1");
+            autocompleteCity("city2");
+        });
+    </script>
+</head>
+<body>
+    <h1>City Distance Calculator</h1>
+    
+    <label for="city1">Enter first city:</label>
+    <input type="text" id="city1" list="city1-list" placeholder="e.g., Copenhagen">
+    <datalist id="city1-list"></datalist>
+
+    <label for="city2">Enter second city:</label>
+    <input type="text" id="city2" list="city2-list" placeholder="e.g., Lund">
+    <datalist id="city2-list"></datalist>
+
+    <button onclick="calculateDistance()">Calculate Distance</button>
+
+    <p id="result"></p>
+</body>
+</html>
