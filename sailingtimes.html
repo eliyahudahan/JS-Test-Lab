@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; }
+  h2, h3 { color: #0077b6; }
+  p { font-size: 20px; font-weight: bold; }
+  button { margin: 5px; padding: 8px; }
+</style>
+</head>
+<body>
+
+<h1>JavaScript Dynamic Clock</h1>
+<h2> 🕰 Live Time in Copenhagen</h2>
+<p id="clock"></p>
+
+<h3> 🛥 Select your sailing destination</h3>
+<select id="citySelect">
+  <option value="Europe/Stockholm">Stockholm (Sweden)</option>
+  <option value="Europe/Oslo">Oslo (Norway)</option>
+  <option value="Atlantic/Faroe">Tórshavn (Faroe Islands)</option>
+  <option value="Atlantic/Reykjavik">Reykjavik (Iceland)</option>
+  <option value="Europe/Gothenburg">Gothenburg (Sweden)</option>
+  <option value="Europe/Trondheim">Trondheim (Norway)</option>
+  <option value="Europe/Hamburg">Hamburg (Germany)</option>
+</select>
+
+<button onclick="addClock()">Choose Sailing</button>
+
+<div id="sailingClocks"></div>
+
+<script>
+function updateClock() {
+  document.getElementById('clock').innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function addClock() {
+  const selectedZone = document.getElementById('citySelect').value;
+  const selectedText = document.getElementById('citySelect').options[document.getElementById('citySelect').selectedIndex].text;
+  
+  if (document.getElementById(selectedZone.replace(/\//g, ''))) return; // למנוע יצירת שעון כפול
+
+  const clockDiv = document.createElement('div');
+  clockDiv.innerHTML = `<h3> ⏳ Live time in ${selectedText} </h3>
+                        <p id="${selectedZone.replace(/\//g, '')}"></p>
+                        <button onclick="removeClock('${selectedZone.replace(/\//g, '')}')">Remove</button>`;
+  document.getElementById('sailingClocks').appendChild(clockDiv);
+
+  function updateSailingClock() {
+    document.getElementById(selectedZone.replace(/\//g, '')).innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: selectedZone });
+  }
+  setInterval(updateSailingClock, 1000);
+  updateSailingClock();
+}
+
+function removeClock(clockId) {
+  const clockDiv = document.getElementById(clockId).parentElement;
+  clockDiv.remove();
+}
+</script>
+
+</body>
+</html>
