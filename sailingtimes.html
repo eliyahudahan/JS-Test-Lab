@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sailing Clocks with Allowed Regions</title>
+  <title>Sailing Time Zones</title>
   <style>
     body { font-family: Arial, sans-serif; text-align: center; }
     h2, h3 { color: #0077b6; }
@@ -13,168 +12,83 @@
   </style>
 </head>
 <body>
-  <h1>Sailing Clocks and City Validator</h1>
-  
-  <!-- שעון קבוע - קופנהגן -->
-  <h2>🕰 Live Time in Copenhagen</h2>
+  <h1>Maritime Time Zone Viewer</h1>
+
+  <h2>Live Time in Copenhagen</h2>
   <p id="clockCopenhagen"></p>
-  
-  <!-- קלט לעיר עם autocomplete (datalist) -->
-  <h3>🚢 Add Sailing Destination Clock</h3>
-  <label for="cityInput">Enter city name (within allowed regions):</label>
-  <input type="text" id="cityInput" list="city-list" placeholder="e.g., Stockholm">
+
+  <h3>Add Destination</h3>
+  <input type="text" id="cityInput" list="city-list" placeholder="Enter port city">
   <datalist id="city-list"></datalist>
-  <button onclick="addSailingClock()">Add Sailing Clock</button>
-  
-  <!-- אזור להוספת שעוני הפלגה -->
+  <button onclick="addSailingClock()">Add Clock</button>
+
   <div id="sailingClocks"></div>
-  
-  <!-- הודעות למשתמש (שגיאות/אישורים) -->
   <p id="message"></p>
-  
+
   <script>
-    // הגדרות גבולות הגאוגרפיים – רק ערים בתוך הגבולות הללו ייחשבו כ-valid.
+    // Define valid sailing regions with simplified bounding boxes
     const allowedRegions = [
-      { name: "Denmark", latMin: 54.5, latMax: 57.8, lonMin: 8.0, lonMax: 12.9, timeZone: "Europe/Copenhagen" },
-      { name: "Sweden", latMin: 55.0, latMax: 57.5, lonMin: 12.0, lonMax: 14.5, timeZone: "Europe/Stockholm" },
-      { name: "Germany", latMin: 54.7, latMax: 55.0, lonMin: 9.2, lonMax: 9.5, timeZone: "Europe/Berlin" }, // לדוגמה, פלמסבורג בלבד.
-      { name: "Faroe Islands", latMin: 61.4, latMax: 62.4, lonMin: -7.7, lonMax: -6.5, timeZone: "Atlantic/Faroe" },
-      { name: "Iceland", latMin: 63.3, latMax: 66.0, lonMin: -24.5, lonMax: -13.0, timeZone: "Atlantic/Reykjavik" },
-      { name: "Norway", latMin: 58.0, latMax: 70.0, lonMin: 5.0, lonMax: 20.0, timeZone: "Europe/Oslo" }
+      { name: "Copenhagen-Helsingborg", latMin: 55.5, latMax: 56.2, lonMin: 11.9, lonMax: 13.2, timeZone: "Europe/Copenhagen" },
+      { name: "Copenhagen-Hamburg", latMin: 54.5, latMax: 56.0, lonMin: 8.9, lonMax: 10.5, timeZone: "Europe/Berlin" },
+      { name: "Hamburg Area", latMin: 53.3, latMax: 54.0, lonMin: 9.7, lonMax: 10.5, timeZone: "Europe/Berlin" },
+      { name: "Norwegian Coast (Expanded)", latMin: 57.9, latMax: 63.5, lonMin: 5.0, lonMax: 11.5, timeZone: "Europe/Oslo" },
+      { name: "Faroe Islands", latMin: 61.3, latMax: 62.5, lonMin: -7.8, lonMax: -6.0, timeZone: "Atlantic/Faroe" },
+      { name: "Iceland South to North", latMin: 63.4, latMax: 66.1, lonMin: -22.0, lonMax: -16.0, timeZone: "Atlantic/Reykjavik" }
     ];
-    
-    // פונקציה שבודקת לאיזה אזור משתייכים הקואורדינטות שקיבלנו
-    // אם הקואורדינטות נעות בטווח של אחד האזורים, היא מחזירה את האובייקט של אותו אזור.
+
     function getRegionForCoordinates(lat, lon) {
-      for (let region of allowedRegions) {
-        if (lat >= region.latMin && lat <= region.latMax &&
-            lon >= region.lonMin && lon <= region.lonMax) {
-          return region;
-        }
-      }
-      return null;
+      return allowedRegions.find(region => lat >= region.latMin && lat <= region.latMax && lon >= region.lonMin && lon <= region.lonMax) || null;
     }
-    
-    // שימוש בשירות Nominatim של OpenStreetMap לקבלת קואורדינטות לעיר.
+
     async function getCoordinates(cityName) {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityName)}`;
       try {
         const response = await fetch(url);
         const data = await response.json();
-        if (!data.length) {
-          return null;
-        }
-        // מחזירים את הקואורדינאטות של התוצאה הראשונה
-        return { 
-          lat: parseFloat(data[0].lat), 
-          lon: parseFloat(data[0].lon), 
-          display_name: data[0].display_name 
-        };
+        return data.length ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display_name: data[0].display_name } : null;
       } catch (error) {
-        console.error("Error fetching coordinates:", error);
+        console.error("Error fetching city:", error);
         return null;
       }
     }
-    
-    // עדכון שעון קופנהגן כל שנייה
+
     function updateCopenhagenClock() {
-      document.getElementById('clockCopenhagen').innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: 'Europe/Copenhagen' });
+      document.getElementById("clockCopenhagen").innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: "Europe/Copenhagen" });
     }
     setInterval(updateCopenhagenClock, 1000);
     updateCopenhagenClock();
-    
-    // פונקציה להוספת שעון הפלגה בהתבסס על שם העיר שהמשתמש קלט.
+
     async function addSailingClock() {
       const cityName = document.getElementById("cityInput").value.trim();
       const messageElement = document.getElementById("message");
-      
-      if (!cityName) {
-        messageElement.innerHTML = "❌ Please enter a city name.";
-        return;
-      }
-      messageElement.innerHTML = "";
-      
-      // מקבלים קואורדינטות לעיר מה-OSM
+
+      if (!cityName) return (messageElement.innerHTML = "❌ Please enter a city.");
+
       const coords = await getCoordinates(cityName);
-      if (!coords) {
-        messageElement.innerHTML = "❌ City not found.";
-        return;
-      }
-      
-      // בודקים אם העיר נמצאת בתוך אחד האזורים המוגדרים
+      if (!coords) return (messageElement.innerHTML = "❌ City not found.");
+
       const region = getRegionForCoordinates(coords.lat, coords.lon);
-      if (!region) {
-        messageElement.innerHTML = "❌ City is outside the allowed range.";
-        return;
-      }
-      
-      // יוצרים מזהה ייחודי עבור השעון (מסירים רווחים ותוויים מיוחדים)
+      if (!region) return (messageElement.innerHTML = "❌ City is outside the sailing zone.");
+
       const clockId = cityName.replace(/\s/g, '').replace(/[^a-zA-Z0-9]/g, '');
-      if (document.getElementById(clockId)) {
-        messageElement.innerHTML = "⚠️ This sailing clock is already added.";
-        return;
-      }
-      
-      // יוצרים div חדש לשעון ההפלגה
+      if (document.getElementById(clockId)) return (messageElement.innerHTML = "⚠️ Clock already added.");
+
       const clockDiv = document.createElement("div");
-      clockDiv.innerHTML = `<h3>⏳ Live time in ${cityName} (${region.name})</h3>
-                            <p id="${clockId}"></p>
-                            <button onclick="removeClock('${clockId}')">Remove</button>`;
+      clockDiv.innerHTML = `<h3>${coords.display_name}</h3><p id="${clockId}"></p><button onclick="removeClock('${clockId}')">Remove</button>`;
       document.getElementById("sailingClocks").appendChild(clockDiv);
-      
-      // פונקציה לעדכון השעון עבור יעד זה בהתאם לאזור הזמן שמוגדר באזור
-      function updateSailingClock() {
-        const clockElement = document.getElementById(clockId);
-        if (clockElement) {
-          clockElement.innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: region.timeZone });
-        }
+
+      function updateClock() {
+        document.getElementById(clockId).innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: region.timeZone });
       }
-      setInterval(updateSailingClock, 1000);
-      updateSailingClock();
+
+      setInterval(updateClock, 1000);
+      updateClock();
+      messageElement.innerHTML = "✅ Clock added successfully.";
     }
-    
-    // פונקציה להסרת שעון הפלגה
+
     function removeClock(clockId) {
-      const clockDiv = document.getElementById(clockId).parentElement;
-      clockDiv.remove();
+      document.getElementById(clockId).parentElement.remove();
     }
-    
-    // פונקציה ל-autocomplete בשדה הקלט באמצעות OpenStreetMap,
-    // תוך סינון התוצאות כך שיוצגו רק תוצאות בתוך הטווח המותר.
-    async function autocompleteCity() {
-      const input = document.getElementById("cityInput");
-      input.addEventListener("input", async function() {
-        const query = input.value.trim();
-        if (query.length < 3) return;
-        
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
-        try {
-          const response = await fetch(url);
-          const data = await response.json();
-          const dataList = document.getElementById("city-list");
-          dataList.innerHTML = "";
-          
-          // מסננים רק ערים שתוצאותיהן נמצאות בטווח המותר
-          for (let item of data) {
-            const lat = parseFloat(item.lat),
-                  lon = parseFloat(item.lon);
-            const region = getRegionForCoordinates(lat, lon);
-            if (region) {
-              const option = document.createElement("option");
-              option.value = item.display_name;
-              dataList.appendChild(option);
-            }
-          }
-        } catch(error) {
-          console.error("Autocomplete error:", error);
-        }
-      });
-    }
-    
-    // אתחול ה-autocomplete עם טעינת הדף
-    document.addEventListener("DOMContentLoaded", () => {
-      autocompleteCity();
-    });
   </script>
 </body>
 </html>
