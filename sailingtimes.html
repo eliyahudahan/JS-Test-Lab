@@ -1,93 +1,322 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Sailing Time Zones</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cruise Time & Sailing Availability Viewer</title>
+  
+  <!-- Bootstrap CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
   <style>
     body { font-family: Arial, sans-serif; text-align: center; }
     h2, h3 { color: #0077b6; }
     p { font-size: 20px; font-weight: bold; }
     button { margin: 5px; padding: 8px; }
-    input { padding: 5px; margin: 5px; }
+    input, select { padding: 5px; margin: 5px; }
+    /* Optional: Style adjustments for the clock boxes */
+    .clock-box {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin: 10px auto;
+      width: 300px;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
   </style>
 </head>
 <body>
-  <h1>Maritime Time Zone Viewer</h1>
-
-  <h2>Live Time in Copenhagen</h2>
-  <p id="clockCopenhagen"></p>
-
-  <h3>Add Destination</h3>
-  <input type="text" id="cityInput" list="city-list" placeholder="Enter port city">
-  <datalist id="city-list"></datalist>
-  <button onclick="addSailingClock()">Add Clock</button>
-
-  <div id="sailingClocks"></div>
-  <p id="message"></p>
-
+  <div class="container my-5">
+    <h1 class="mb-4">Cruise Time & Sailing Availability Viewer</h1>
+    
+    <!-- CLOCK SECTION -->
+    <section id="clocks">
+      <h2>Live Time in Copenhagen (Default)</h2>
+      <p id="clockCopenhagen"></p>
+      
+      <h3>Add Destination Clock</h3>
+      <input type="text" id="cityInput" placeholder="Enter port city (e.g., Helsingborg, Flensburg)" />
+      <button onclick="addSailingClock()">Add Clock</button>
+      <p id="message" class="text-danger"></p>
+      <div id="sailingClocks"></div>
+    </section>
+    
+    <hr class="my-5">
+    
+    <!-- SAILING SEARCH SECTION -->
+    <section id="sailingSearch">
+      <div class="card mx-auto mb-5" style="max-width: 800px;">
+        <div class="card-body">
+          <h3 class="card-title">Sailing Search</h3>
+          <form id="searchForm" onsubmit="searchSailing(event)">
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label for="departure_date" class="form-label">Departure After</label>
+                <input type="date" id="departure_date" name="departure_date" class="form-control" />
+              </div>
+              <div class="col-md-3">
+                <label for="return_date" class="form-label">Return Before</label>
+                <input type="date" id="return_date" name="return_date" class="form-control" />
+              </div>
+              <div class="col-md-3">
+                <label for="min_price" class="form-label">Min Price (€)</label>
+                <input type="number" id="min_price" name="min_price" step="0.01" class="form-control" />
+              </div>
+              <div class="col-md-3">
+                <label for="max_price" class="form-label">Max Price (€)</label>
+                <input type="number" id="max_price" name="max_price" step="0.01" class="form-control" />
+              </div>
+              <div class="col-md-3">
+                <label for="region" class="form-label">Region</label>
+                <select id="region" name="region" class="form-select">
+                  <option value="">-- All Regions --</option>
+                  <option value="denmark">Denmark</option>
+                  <option value="sweden">Sweden</option>
+                  <option value="norway">Norway</option>
+                  <option value="faroe_islands">Faroe Islands</option>
+                  <option value="germany">Germany</option>
+                  <option value="iceland">Iceland</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label for="availability" class="form-label">Availability</label>
+                <select id="availability" name="availability" class="form-select">
+                  <option value="">-- Any --</option>
+                  <option value="available">Available</option>
+                  <option value="almost_full">Almost Full</option>
+                  <option value="last_places">Last Places</option>
+                </select>
+              </div>
+              <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Search Sailing Routes</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div id="searchResults" class="mx-auto" style="max-width: 800px;"></div>
+    </section>
+  </div>
+  
+  <!-- Bootstrap JS CDN (for optional Bootstrap components) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  
   <script>
-    // Define valid sailing regions with simplified bounding boxes
+    // ---------- CLOCK FUNCTIONALITY ----------
+    // Default clock for Copenhagen
+    function updateCopenhagenClock() {
+      document.getElementById("clockCopenhagen").innerHTML =
+        new Date().toLocaleTimeString('en-US', { timeZone: "Europe/Copenhagen" });
+    }
+    setInterval(updateCopenhagenClock, 1000);
+    updateCopenhagenClock();
+    
+    // Allowed sailing regions defined by simplified bounding boxes & time zones
+    // Note: Updated boundaries to include Helsingborg (Sweden) & Flensburg (Germany)
     const allowedRegions = [
-      { name: "Copenhagen-Helsingborg", latMin: 55.5, latMax: 56.2, lonMin: 11.9, lonMax: 13.2, timeZone: "Europe/Copenhagen" },
+      { name: "Copenhagen-Helsingborg", latMin: 55.5, latMax: 56.3, lonMin: 11.7, lonMax: 13.2, timeZone: "Europe/Stockholm" },
+      { name: "Flensburg", latMin: 54.75, latMax: 54.85, lonMin: 9.3, lonMax: 9.5, timeZone: "Europe/Berlin" },
       { name: "Copenhagen-Hamburg", latMin: 54.5, latMax: 56.0, lonMin: 8.9, lonMax: 10.5, timeZone: "Europe/Berlin" },
-      { name: "Hamburg Area", latMin: 53.3, latMax: 54.0, lonMin: 9.7, lonMax: 10.5, timeZone: "Europe/Berlin" },
       { name: "Norwegian Coast (Expanded)", latMin: 57.9, latMax: 63.5, lonMin: 5.0, lonMax: 11.5, timeZone: "Europe/Oslo" },
       { name: "Faroe Islands", latMin: 61.3, latMax: 62.5, lonMin: -7.8, lonMax: -6.0, timeZone: "Atlantic/Faroe" },
       { name: "Iceland South to North", latMin: 63.4, latMax: 66.1, lonMin: -22.0, lonMax: -16.0, timeZone: "Atlantic/Reykjavik" }
     ];
-
+    
+    // Given coordinates, check which region they fall into (if any)
     function getRegionForCoordinates(lat, lon) {
-      return allowedRegions.find(region => lat >= region.latMin && lat <= region.latMax && lon >= region.lonMin && lon <= region.lonMax) || null;
+      return allowedRegions.find(region =>
+        lat >= region.latMin && lat <= region.latMax &&
+        lon >= region.lonMin && lon <= region.lonMax
+      ) || null;
     }
-
+    
+    // Fetch coordinates using Nominatim API
     async function getCoordinates(cityName) {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityName)}`;
       try {
         const response = await fetch(url);
         const data = await response.json();
-        return data.length ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display_name: data[0].display_name } : null;
+        return data.length 
+          ? {
+              lat: parseFloat(data[0].lat),
+              lon: parseFloat(data[0].lon),
+              display_name: data[0].display_name
+            }
+          : null;
       } catch (error) {
         console.error("Error fetching city:", error);
         return null;
       }
     }
-
-    function updateCopenhagenClock() {
-      document.getElementById("clockCopenhagen").innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: "Europe/Copenhagen" });
-    }
-    setInterval(updateCopenhagenClock, 1000);
-    updateCopenhagenClock();
-
+    
+    // Add a new sailing clock based on user-entered city
     async function addSailingClock() {
       const cityName = document.getElementById("cityInput").value.trim();
       const messageElement = document.getElementById("message");
-
-      if (!cityName) return (messageElement.innerHTML = "❌ Please enter a city.");
-
-      const coords = await getCoordinates(cityName);
-      if (!coords) return (messageElement.innerHTML = "❌ City not found.");
-
-      const region = getRegionForCoordinates(coords.lat, coords.lon);
-      if (!region) return (messageElement.innerHTML = "❌ City is outside the sailing zone.");
-
-      const clockId = cityName.replace(/\s/g, '').replace(/[^a-zA-Z0-9]/g, '');
-      if (document.getElementById(clockId)) return (messageElement.innerHTML = "⚠️ Clock already added.");
-
-      const clockDiv = document.createElement("div");
-      clockDiv.innerHTML = `<h3>${coords.display_name}</h3><p id="${clockId}"></p><button onclick="removeClock('${clockId}')">Remove</button>`;
-      document.getElementById("sailingClocks").appendChild(clockDiv);
-
-      function updateClock() {
-        document.getElementById(clockId).innerHTML = new Date().toLocaleTimeString('da-DK', { timeZone: region.timeZone });
+      messageElement.innerHTML = "";
+      
+      if (!cityName) {
+        messageElement.innerHTML = "❌ Please enter a city.";
+        return;
       }
-
+      
+      // Fetch coordinates from the external API
+      const coords = await getCoordinates(cityName);
+      if (!coords) {
+        messageElement.innerHTML = "❌ City not found via API.";
+        return;
+      }
+      
+      // Determine if the city's coordinates are within an allowed region
+      const region = getRegionForCoordinates(coords.lat, coords.lon);
+      if (!region) {
+        messageElement.innerHTML = "❌ City is outside the sailing zone.";
+        return;
+      }
+      
+      // Create a DOM-friendly id from the city name
+      const clockId = cityName.replace(/\s/g, '').replace(/[^a-zA-Z0-9]/g, '');
+      if (document.getElementById(clockId)) {
+        messageElement.innerHTML = "⚠️ Clock already added.";
+        return;
+      }
+      
+      // Create and add the clock box
+      const clockDiv = document.createElement("div");
+      clockDiv.className = "clock-box";
+      clockDiv.innerHTML = `
+        <h4>${coords.display_name}</h4>
+        <p id="${clockId}"></p>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeClock('${clockId}')">Remove</button>
+      `;
+      document.getElementById("sailingClocks").appendChild(clockDiv);
+      
+      // Function to update this clock every second using the region's time zone
+      function updateClock() {
+        const el = document.getElementById(clockId);
+        if (el) {
+          el.innerHTML = new Date().toLocaleTimeString('en-US', { timeZone: region.timeZone });
+        }
+      }
       setInterval(updateClock, 1000);
       updateClock();
       messageElement.innerHTML = "✅ Clock added successfully.";
     }
-
+    
+    // Remove a clock from the display
     function removeClock(clockId) {
-      document.getElementById(clockId).parentElement.remove();
+      const elem = document.getElementById(clockId);
+      if (elem && elem.parentElement) {
+        elem.parentElement.remove();
+      }
+    }
+    
+    // ---------- SAILING SEARCH FUNCTIONALITY ----------
+    // Dummy sailing data – ideally, in production, real-time data from a maritime API would be used
+    const dummySailings = [
+      {
+        title: "Baltic Explorer",
+        description: "Cruise in the Baltic Sea.",
+        departureDate: "2025-06-15",
+        returnDate: "2025-06-22",
+        price: 1500,
+        region: "denmark",
+        availability: "available"
+      },
+      {
+        title: "Scandinavian Adventure",
+        description: "Explore Norway and Sweden.",
+        departureDate: "2025-07-01",
+        returnDate: "2025-07-08",
+        price: 2000,
+        region: "norway",
+        availability: "almost_full"
+      },
+      {
+        title: "German Harbor Cruise",
+        description: "Cruise around Hamburg and the North Sea, including Flensburg.",
+        departureDate: "2025-08-05",
+        returnDate: "2025-08-12",
+        price: 1800,
+        region: "germany",
+        availability: "last_places"
+      },
+      {
+        title: "Icelandic Voyage",
+        description: "Experience Iceland's unique landscapes.",
+        departureDate: "2025-09-10",
+        returnDate: "2025-09-18",
+        price: 2200,
+        region: "iceland",
+        availability: "available"
+      }
+    ];
+    
+    // Search sailing trips based on form inputs and show results
+    function searchSailing(event) {
+      event.preventDefault(); // Prevent form submission
+      
+      // Gather search parameters
+      const departureDate = document.getElementById("departure_date").value;
+      const returnDate = document.getElementById("return_date").value;
+      const minPrice = parseFloat(document.getElementById("min_price").value) || 0;
+      const maxPrice = parseFloat(document.getElementById("max_price").value) || Infinity;
+      const region = document.getElementById("region").value;
+      const availability = document.getElementById("availability").value;
+      
+      // Filter dummy data based on search criteria
+      const results = dummySailings.filter(sailing => {
+        // Check departure and return dates if provided
+        let depOK = departureDate ? (sailing.departureDate >= departureDate) : true;
+        let retOK = returnDate ? (sailing.returnDate <= returnDate) : true;
+        
+        // Check price range, region and availability – if specified
+        let priceOK = (sailing.price >= minPrice && sailing.price <= maxPrice);
+        let regionOK = region ? (sailing.region === region) : true;
+        let availOK = availability ? (sailing.availability === availability) : true;
+      
+        return depOK && retOK && priceOK && regionOK && availOK;
+      });
+      
+      displaySearchResults(results);
+    }
+    
+    // Render search results in a table
+    function displaySearchResults(results) {
+      const container = document.getElementById("searchResults");
+      if (results.length === 0) {
+        container.innerHTML = "<p class='text-danger'>No sailing routes match your search criteria.</p>";
+        return;
+      }
+  
+      let html = `<table class="table table-striped table-hover">
+        <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Departure Date</th>
+            <th>Return Date</th>
+            <th>Price (€)</th>
+            <th>Region</th>
+            <th>Availability</th>
+          </tr>
+        </thead>
+        <tbody>`;
+  
+      results.forEach(sailing => {
+        html += `<tr>
+          <td>${sailing.title}</td>
+          <td>${sailing.description}</td>
+          <td>${sailing.departureDate}</td>
+          <td>${sailing.returnDate}</td>
+          <td>${sailing.price.toFixed(2)}</td>
+          <td>${sailing.region}</td>
+          <td>${sailing.availability}</td>
+        </tr>`;
+      });
+  
+      html += "</tbody></table>";
+      container.innerHTML = html;
     }
   </script>
 </body>
