@@ -2,21 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Weather Alert Simulation - Copenhagen, Denmark</title>
+  <title>Weather Alert Simulation - Copenhagen</title>
   <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f0f4f8;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
     #output {
       margin-top: 20px;
-      font-size: 1.2em;
-      line-height: 1.5;
+      font-size: 1.1em;
+      line-height: 1.6;
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
+
     .good {
       color: green;
       font-weight: bold;
     }
+
     .challenging {
       color: orange;
       font-weight: bold;
     }
+
     .dangerous {
       color: red;
       font-weight: bold;
@@ -25,116 +56,93 @@
 </head>
 <body>
 
-<h1>Sailing Weather Simulation - Copenhagen, Denmark</h1>
-<button id="checkWeatherBtn">Check Weather</button>
-<p id="output">Status: Awaiting weather data...</p>
+  <h1>Sailing Weather Simulation - Copenhagen</h1>
+  <button id="checkWeatherBtn">Check Weather</button>
+  <div id="output">Status: Awaiting weather data...</div>
 
-<script>
-  // Thresholds for sailing conditions (based on Copenhagen climate and sailing guidelines)
-  const tempThresholdGood = { min: 10, max: 25 }; // °C, ideal for sailing
-  const tempThresholdChallenging = { min: -5, max: 30 }; // °C, manageable but requires caution
-  const windThresholdGood = 30; // km/h, good for sailing
-  const windThresholdChallenging = 50; // km/h, challenging but possible
+  <script>
+    const tempThresholdGood = { min: 10, max: 25 };
+    const tempThresholdChallenging = { min: -5, max: 30 };
+    const windThresholdGood = 30;
+    const windThresholdChallenging = 50;
 
-  // Weather code descriptions (based on WMO codes from Open-Meteo)
-  function getWeatherDescription(code) {
-    const weatherCodes = {
-      0: "Clear sky",
-      1: "Mainly clear",
-      2: "Partly cloudy",
-      3: "Overcast",
-      45: "Fog",
-      51: "Drizzle: Light intensity",
-      53: "Drizzle: Moderate intensity",
-      55: "Drizzle: Dense intensity",
-      61: "Rain: Slight intensity",
-      63: "Rain: Moderate intensity",
-      65: "Rain: Heavy intensity",
-      71: "Snow: Slight intensity",
-      73: "Snow: Moderate intensity",
-      75: "Snow: Heavy intensity",
-      95: "Thunderstorm"
-    };
-    return weatherCodes[code] || "Unknown weather condition";
-  }
+    function getWeatherDescription(code) {
+      const weatherCodes = {
+        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+        61: "Light rain", 63: "Moderate rain", 65: "Heavy rain",
+        71: "Light snow", 73: "Moderate snow", 75: "Heavy snow",
+        95: "Thunderstorm"
+      };
+      return weatherCodes[code] || "Unknown weather condition";
+    }
 
-  // Convert wind direction (degrees) to cardinal direction
-  function getWindDirection(degrees) {
-    const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-    const index = Math.round(degrees / 45) % 8;
-    return directions[index];
-  }
+    function getWindDirection(deg) {
+      const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      return dirs[Math.round(deg / 45) % 8];
+    }
 
-  document.getElementById('checkWeatherBtn').addEventListener('click', () => {
-    // Updated URL with correct parameter for pressure (hourly data)
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=55.6761&longitude=12.5683&current_weather=true&hourly=pressure_msl')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTPresponse.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Check if required data is available: current weather and hourly pressure data
-        if (!data.current_weather || !data.hourly) {
-          throw new Error('Incomplete data received from API');
-        }
+    document.getElementById('checkWeatherBtn').addEventListener('click', () => {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=55.6761&longitude=12.5683&current_weather=true&hourly=pressure_msl';
 
-        const weather = data.current_weather;
-        const temperature = weather.temperature;
-        const windspeed = weather.windspeed;
-        const winddirection = weather.winddirection;
-        const weathercode = weather.weathercode;
-        
-        // Find the current time index in hourly data for pressure
-        const currentTime = weather.time;
-        const timeIndex = data.hourly.time.indexOf(currentTime);
-        const pressure = timeIndex !== -1 ? data.hourly.pressure_msl[timeIndex] : 'N/A';
+      fetch(url)
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          if (!data.current_weather || !data.hourly) {
+            throw new Error("Missing weather or pressure data.");
+          }
 
-        // Determine sailing status
-        let status, statusClass, recommendation;
-        if (
-          temperature >= tempThresholdGood.min &&
-          temperature <= tempThresholdGood.max &&
-          windspeed <= windThresholdGood &&
-          ![45, 55, 63, 65, 75, 95].includes(weathercode) // Exclude dangerous conditions like fog, heavy rain/snow, thunderstorm
-        ) {
-          status = "Good for sailing";
-          statusClass = "good";
-          recommendation = "Ideal conditions for sailing. Ensure standard safety equipment and enjoy your trip.";
-        } else if (
-          temperature >= tempThresholdChallenging.min &&
-          temperature <= tempThresholdChallenging.max &&
-          windspeed <= windThresholdChallenging
-        ) {
-          status = "Challenging for sailing";
-          statusClass = "challenging";
-          recommendation = "Sailing is possible but requires caution. Check equipment, ensure experienced crew, and monitor weather updates.";
-        } else {
-          status = "Dangerous for sailing";
-          statusClass = "dangerous";
-          recommendation = "Avoid sailing. Conditions are too extreme due to temperature, high winds, or severe weather (e.g., heavy rain or thunderstorm).";
-        }
+          const weather = data.current_weather;
+          const { temperature, windspeed, winddirection, weathercode, time } = weather;
+          const timeIndex = data.hourly.time.indexOf(time);
+          const pressure = timeIndex !== -1 ? data.hourly.pressure_msl[timeIndex] : "N/A";
 
-        // Format output
-        let output = `
-          Temperature: ${temperature}°C<br>
-          Wind Speed: ${windspeed} km/h<br>
-          Wind Direction: ${getWindDirection(winddirection)} (${winddirection}°)<br>
-          Weather: ${getWeatherDescription(weathercode)}<br>
-          Pressure: ${pressure} hPa<br>
-          <span class="${statusClass}">Sailing Status: ${status}</span><br>
-          Recommendation: ${recommendation}
-        `;
+          let status, statusClass, recommendation;
 
-        document.getElementById('output').innerHTML = output;
-      })
-      .catch(error => {
-        console.error('Error fetching weather data:', error.message);
-        document.getElementById('output').innerText = `Error fetching weather data: ${error.message}. Please check your internet connection or try again later.`;
-      });
-  });
-</script>
+          if (
+            temperature >= tempThresholdGood.min &&
+            temperature <= tempThresholdGood.max &&
+            windspeed <= windThresholdGood &&
+            ![45, 55, 63, 65, 75, 95].includes(weathercode)
+          ) {
+            status = "Good for sailing";
+            statusClass = "good";
+            recommendation = "Ideal conditions. Enjoy your trip!";
+          } else if (
+            temperature >= tempThresholdChallenging.min &&
+            temperature <= tempThresholdChallenging.max &&
+            windspeed <= windThresholdChallenging
+          ) {
+            status = "Challenging for sailing";
+            statusClass = "challenging";
+            recommendation = "Sail with caution. Check equipment and crew.";
+          } else {
+            status = "Dangerous for sailing";
+            statusClass = "dangerous";
+            recommendation = "Do not sail. Conditions are hazardous.";
+          }
+
+          const output = `
+            Temperature: ${temperature}°C<br>
+            Wind Speed: ${windspeed} km/h<br>
+            Wind Direction: ${getWindDirection(winddirection)} (${winddirection}°)<br>
+            Weather: ${getWeatherDescription(weathercode)}<br>
+            Pressure: ${pressure} hPa<br>
+            <span class="${statusClass}">Sailing Status: ${status}</span><br>
+            Recommendation: ${recommendation}
+          `;
+
+          document.getElementById('output').innerHTML = output;
+        })
+        .catch(error => {
+          console.error("Error:", error.message);
+          document.getElementById('output').innerText = `Error: ${error.message}. Check internet or try again later.`;
+        });
+    });
+  </script>
 
 </body>
 </html>
