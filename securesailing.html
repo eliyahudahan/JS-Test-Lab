@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BergNavn – Weather Log, 1914</title>
+  <style>
+    body {
+      background: #f8f1e4;
+      font-family: 'Georgia', serif;
+      color: #2c2c2c;
+      padding: 2em;
+      max-width: 600px;
+      margin: auto;
+      border: 1px solid #aaa;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 1.8em;
+      border-bottom: 1px solid #444;
+      margin-bottom: 1em;
+    }
+    label {
+      font-weight: bold;
+    }
+    input, button {
+      padding: 0.5em;
+      font-size: 1em;
+      margin-top: 0.5em;
+      margin-bottom: 1em;
+    }
+    .logbook {
+      background: #fffef9;
+      border: 1px dashed #999;
+      padding: 1em;
+      font-family: 'Courier New', monospace;
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧭 Weather Log for BergNavn – Year 1914</h1>
+
+  <label for="city">Enter Port City:</label><br>
+  <input type="text" id="city" placeholder="Copenhagen" value="Copenhagen"><br>
+  <button onclick="getWeather()">Fetch Weather Report</button>
+
+  <div id="output" class="logbook">
+    Awaiting log entry...
+  </div>
+
+  <script>
+    const mockWeatherData = {
+      "Copenhagen": {
+        name: "Copenhagen",
+        country: "DK",
+        temp: 15.3,
+        wind: 5.1,
+        description: "light rain"
+      },
+      "Aarhus": {
+        name: "Aarhus",
+        country: "DK",
+        temp: 13.8,
+        wind: 3.7,
+        description: "cloudy"
+      },
+      "Odense": {
+        name: "Odense",
+        country: "DK",
+        temp: 9.0,
+        wind: 2.0,
+        description: "heavy rain"
+      }
+    };
+
+    function getWeather() {
+      const city = document.getElementById('city').value.trim();
+      const data = mockWeatherData[city];
+      const outputDiv = document.getElementById('output');
+
+      if (!data) {
+        outputDiv.innerText = `⚠️ Port "${city}" not found in mock data. Try Copenhagen, Aarhus, or Odense.`;
+        return;
+      }
+
+      let recommendation = "✅ Suitable for sailing.";
+      if (
+        data.temp < 10 || data.temp > 30 ||
+        data.wind > 8 ||
+        data.description.toLowerCase().includes("heavy rain")
+      ) {
+        recommendation = "⚠️ Not recommended for sailing under current conditions.";
+      }
+
+      const weather = `
+📍 Port: ${data.name}, ${data.country}
+🌡️ Temperature: ${data.temp} °C
+💨 Wind: ${data.wind} m/s
+☁️ Conditions: ${data.description}
+🕰️ Report Time: ${new Date().toLocaleString()}
+
+🚢 Recommendation: ${recommendation}
+      `;
+
+      outputDiv.innerText = weather;
+    }
+  </script>
+</body>
+</html>
