@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>מסלולי שייט עם התראות מזג אוויר</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f0f8ff;
+      direction: rtl;
+    }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #route {
+      margin-top: 20px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .leg {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 5px;
+      border-right: 5px solid #007acc;
+    }
+    .alert {
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .green { background: #e6f7e6; border-color: #2ecc71; }
+    .yellow { background: #fff8e6; border-color: #f39c12; }
+    .red { background: #fee; border-color: #e74c3c; }
+    .distance-bar {
+      height: 8px;
+      background: #3498db;
+      margin-top: 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚢 מסלולי שייט מומלצים</h1>
+  
+  <div>
+    <button onclick="startRoute(1)">מסלול 1 (סקנדינביה מזרחית)</button>
+    <button onclick="startRoute(2)">מסלול 2 (בלטית מערבית)</button>
+    <button onclick="startRoute(3)">מסלול 3 (בלטית מלאה)</button>
+  </div>
+  
+  <div id="weather-info" style="margin: 15px 0; padding: 10px; background: #eaf2f8; border-radius: 5px;">
+    מזג אוויר מעודכן: <span id="update-time">טוען...</span>
+  </div>
+  
+  <div id="route"></div>
+
+  <script>
+    // נתוני נמלים - קואורדינטות ומרחקים
+    const ports = {
+      "סטוקהולם": { lat: 59.33, lon: 18.07, country: "שוודיה" },
+      "ויסבי": { lat: 57.63, lon: 18.30, country: "שוודיה" },
+      "ריגה": { lat: 56.97, lon: 24.00, country: "לטביה" },
+      "קלייפדה": { lat: 55.71, lon: 21.13, country: "ליטא" },
+      "גדנסק": { lat: 54.35, lon: 18.65, country: "פולין" },
+      "וורנמינדה": { lat: 54.18, lon: 12.09, country: "גרמניה" },
+      "קופנהגן": { lat: 55.68, lon: 12.60, country: "דנמרק" },
+      "אאלבורג": { lat: 57.05, lon: 9.92, country: "דנמרק" },
+      "אוסלו": { lat: 59.91, lon: 10.75, country: "נורבגיה" },
+      "טורקו": { lat: 60.45, lon: 22.27, country: "פינלנד" },
+      "הלסינקי": { lat: 60.17, lon: 24.96, country: "פינלנד" },
+      "טאלין": { lat: 59.44, lon: 24.75, country: "אסטוניה" }
+    };
+
+    // מסלולים מומלצים
+    const routes = {
+      1: ["סטוקהולם", "ויסבי", "ריגה", "קלייפדה", "גדנסק", "וורנמינדה", "קופנהגן"],
+      2: ["קופנהגן", "אאלבורג", "אוסלו", "טורקו", "הלסינקי", "טאלין", "סטוקהולם"],
+      3: ["סטוקהולם", "הלסינקי", "טורקו", "טאלין", "ריגה", "קלייפדה", "גדנסק", "קופנהגן"]
+    };
+
+    // הגדרות API - יש להחליף במפתח אישי
+    const apiKey = "YOUR_API_KEY_HERE"; // להחליף במפתח אישי מ-OpenWeatherMap
+    const weatherCache = {};
+
+    // חישוב מרחק בין נמלים
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // זמן סימולציה לפי מרחק
+    function getSimulationTime(km) {
+      return Math.max(3, Math.min(20, Math.floor(km / 50))); // 3-20 שניות
+    }
+
+    // שליפת מזג אוויר
+    async function getWeather(city) {
+      if (weatherCache[city]) return weatherCache[city];
+      
+      try {
+        const response = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric&lang=he`
+        );
+        const data = await response.json();
+        weatherCache[city] = data;
+        return data;
+      } catch (error) {
+        console.error("שגיאה בטעינת מזג אוויר:", error);
+        return null;
+      }
+    }
+
+    // בדיקת התראות
+    function checkAlerts(weather) {
+      if (!weather) return { level: "error", msg: "לא ניתן לטעון נתונים" };
+      
+      const wind = weather.wind?.speed || 0;
+      const temp = weather.main?.temp || 0;
+      
+      if (wind > 15 || temp < -5) {
+        return { level: "red", msg: "⚠️ תנאים מסוכנים: " + 
+               (wind > 15 ? `רוח ${wind} מטר/שנייה ` : "") + 
+               (temp < -5 ? `טמפרטורה ${temp}°C` : "") };
+      } else if (wind > 10 || temp < 0) {
+        return { level: "yellow", msg: "⚠️ תנאים מאתגרים: " + 
+               (wind > 10 ? `רוח ${wind} מטר/שנייה ` : "") + 
+               (temp < 0 ? `טמפרטורה ${temp}°C` : "") };
+      }
+      
+      return { level: "green", msg: "✅ תנאים טובים לשייט" };
+    }
+
+    // הרצת מסלול
+    async function startRoute(routeNum) {
+      const routeDiv = document.getElementById('route');
+      routeDiv.innerHTML = `<h3>מסלול ${routeNum}: מתחיל...</h3>`;
+      
+      const currentRoute = routes[routeNum];
+      let totalDistance = 0;
+      
+      for (let i = 0; i < currentRoute.length - 1; i++) {
+        const from = currentRoute[i];
+        const to = currentRoute[i+1];
+        const fromPort = ports[from];
+        const toPort = ports[to];
+        
+        // חישוב מרחק וזמן
+        const distance = calculateDistance(
+          fromPort.lat, fromPort.lon,
+          toPort.lat, toPort.lon
+        );
+        totalDistance += distance;
+        const simTime = getSimulationTime(distance);
+        
+        // טעינת מזג אוויר
+        const weather = await getWeather(to);
+        const alert = checkAlerts(weather);
+        const weatherDesc = weather?.weather?.[0]?.description || "לא ידוע";
+        
+        // הצגת מידע
+        const legDiv = document.createElement('div');
+        legDiv.className = `leg ${alert.level}`;
+        legDiv.innerHTML = `
+          <h4>${from} → ${to}</h4>
+          <div>מדינה: ${toPort.country}</div>
+          <div>מרחק: ${distance.toFixed(1)} ק"מ</div>
+          <div>מזג אוויר: ${weatherDesc}</div>
+          <div class="alert ${alert.level}">${alert.msg}</div>
+          <div class="distance-bar" style="width: ${Math.min(100, distance)}%"></div>
+        `;
+        
+        routeDiv.appendChild(legDiv);
+        
+        // סימולציית המתנה
+        await new Promise(resolve => setTimeout(resolve, simTime * 1000));
+      }
+      
+      routeDiv.innerHTML += `
+        <div class="leg green">
+          <h4>⭐ המסלול הושלם!</h4>
+          <div>סה"כ מרחק: ${totalDistance.toFixed(1)} ק"מ</div>
+          <div>מספר תחנות: ${currentRoute.length}</div>
+        </div>
+      `;
+      
+      document.getElementById('update-time').textContent = new Date().toLocaleString('he-IL');
+    }
+
+    // הצגת שעת עדכון
+    document.getElementById('update-time').textContent = new Date().toLocaleString('he-IL');
+  </script>
+</body>
+</html>
